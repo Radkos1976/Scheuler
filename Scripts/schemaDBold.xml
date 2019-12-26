@@ -1,0 +1,385 @@
+<?xml version="1.0"?>
+<schema>
+  <table>
+    <name>Variables</name>
+    <field>
+      <fname>Setting</fname>
+      <type>Text(55)</type>
+    </field>
+    <field>
+      <fname>Val_variab</fname>
+      <type>Text(55)</type>
+    </field>
+  </table>
+  <table>
+    <name>dual</name>
+    <field>
+      <fname>id</fname>
+      <type>Text(1)</type>
+    </field>
+    <insert>INSERT INTO dual (id) values ('X')</insert>
+  </table>
+  <table>
+    <name>dbstate</name>
+    <field>
+      <fname>id</fname>
+      <type>counter PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>state</fname>
+      <type>varchar(15) NOT NULL</type>
+    </field>
+    <insert>INSERT INTO dbstate select * from  (select 2 as id,'Aktywny' as state from dual union select 3 as id,'Wstrzymany' as state from dual )</insert>
+  </table>
+  <table>
+    <name>dbtaskenum</name>
+    <field>
+      <fname>id</fname>
+      <type>counter PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>state</fname>
+      <type>varchar(20) NOT NULL</type>
+    </field>
+    <insert>INSERT INTO dbtaskenum select * from  (select 1 as id,'Zaplanowane' as state from dual union select 2 as id,'Aktywne' as state from dual union select 5 as id,'Rozpoczęte' as state from dual union select 4 as id,'Zamknięte' as state from dual union select 6 as id,'Błąd Wykonania' as state from dual union select 3 as id,'Wykonanie wstrzymane' as state from dual union select 7 as id,'Wymuszone Wykonanie' as state from dual union  select 8 as id,'Do przerwania' as state from dual union  select 9 as id,'Przerwane' as state from dual)</insert>
+  </table>
+  <table>
+    <name>calendar_types_day_hdr</name>
+    <field>
+      <fname>id</fname>
+      <type>VARCHAR(40) NOT NULL PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>description</fname>
+      <type>varchar(15) NOT NULL</type>
+    </field>
+    <insert>INSERT INTO calendar_types_day_hdr (id,description) values ('Schedul','Dane dla dni')</insert>
+  </table>
+  <table>
+    <name>calendar_types_day</name>
+    <field>
+      <fname>set_id</fname>
+      <type>VARCHAR(40) NOT NULL CONSTRAINT FK_set_id REFERENCES calendar_types_day_hdr(id) ON UPDATE CASCADE ON DELETE CASCADE</type>
+    </field>
+    <field>
+      <fname>day_id</fname>
+      <type>counter NOT NULL PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>description</fname>
+      <type>varchar(15) NOT NULL</type>
+    </field>
+    <field>
+      <fname>time_day</fname>
+      <type>double</type>
+    </field>
+    <field>
+      <fname>start_hour</fname>
+      <type>DATETIME</type>
+    </field>
+    <field>
+      <fname>end_hour</fname>
+      <type>DATETIME</type>
+    </field>
+    <field>
+      <fname>CONSTRAINT CN_set_id</fname>
+      <type>UNIQUE (set_id,day_id)</type>
+    </field>
+    <insert>INSERT INTO calendar_types_day select * from  (select 'Schedul' as set_id, 1 as day_id,'work_day' as description,1440 as time_day,null as start_hour,null as end_hour from dual union select 'Schedul' as set_id, 2 as day_id,'day_off' as description,0 as time_day,null as start_hour,null as end_hour from dual union select 'Schedul' as set_id,3 as day_id,'Fhalf_day' as description,720 as time_day,cdate(0.3125) as start_hour,cdate(0.8125) as end_hour from dual )</insert>
+  </table>
+  <table>
+    <name>calendar_hdr</name>
+    <field>
+      <fname>id</fname>
+      <type>VARCHAR(40) NOT NULL PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>Valid_from</fname>
+      <type>DATETIME NOT NULL</type>
+    </field>
+    <field>
+      <fname>Valid_to</fname>
+      <type>DATETIME NOT NULL</type>
+    </field>
+    <field>
+      <fname>state</fname>
+      <type>INTEGER NOT NULL CONSTRAINT FK_stat2 REFERENCES dbState (id) ON UPDATE CASCADE</type>
+    </field>
+    <field>
+      <fname>calendar_types_day</fname>
+      <type>VARCHAR(40) NOT NULL CONSTRAINT FK_types_day REFERENCES calendar_types_day_hdr (id) ON UPDATE CASCADE</type>
+    </field>
+    <field>
+      <fname>changed</fname>
+      <type>BIT</type>
+    </field>
+    <insert>INSERT INTO calendar_hdr (id,Valid_from,Valid_to,state,calendar_types_day) values ('default',date(),date()+720,2,'Schedul')</insert>
+    <insert>INSERT INTO calendar_hdr (id,Valid_from,Valid_to,state,calendar_types_day) values ('short',date(),date()+360,2,'Schedul')</insert>
+  </table>
+  <table>
+    <name>calendar_wrk</name>
+    <field>
+      <fname>id</fname>
+      <type>GUID NOT NULL PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>calendar_id</fname>
+      <type>VARCHAR(40) CONSTRAINT FK_cal REFERENCES calendar_hdr (id) ON UPDATE CASCADE ON DELETE CASCADE</type>
+    </field>
+    <field>
+      <fname>cal_counter</fname>
+      <type>integer</type>
+    </field>
+    <field>
+      <fname>work_day</fname>
+      <type>DATETIME</type>
+    </field>
+    <field>
+      <fname>day_id</fname>
+      <type>INTEGER NOT NULL CONSTRAINT FK_day_id REFERENCES calendar_types_day (day_id)</type>
+    </field>
+    <index>CREATE INDEX Ind_self_Date ON calendar_wrk ( work_day)</index>
+    <index>CREATE INDEX Ind_ID_Date ON calendar_wrk (calendar_id, work_day)</index>
+    <index>CREATE INDEX Ind_ID_counter ON calendar_wrk (calendar_id, cal_counter)</index>
+  </table>
+  <table>
+    <name>day_type_queue</name>
+    <field>
+      <fname>rw_id</fname>
+      <type>GUID PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>calendar_id</fname>
+      <type>VARCHAR(40) CONSTRAINT FK_cal1 REFERENCES calendar_hdr (id) ON UPDATE CASCADE ON DELETE CASCADE</type>
+    </field>
+    <field>
+      <fname>period_pos</fname>
+      <type>integer</type>
+    </field>
+    <field>
+      <fname>queue_counter</fname>
+      <type>integer</type>
+    </field>
+    <field>
+      <fname>day_type</fname>
+      <type>INTEGER NOT NULL CONSTRAINT FK_day_id1 REFERENCES calendar_types_day (day_id)</type>
+    </field>
+    <field>
+      <fname>CONSTRAINT CN_period_no</fname>
+      <type>UNIQUE (calendar_id,period_pos)</type>
+    </field>
+    <insert>INSERT INTO day_type_queue Select * from (Select GenGUID() as rw_id,'default' as calendar_id,1 as period_pos,1 as queue_counter,1 as day_type  from dual union Select GenGUID() as rw_id,'default' as calendar_id,2 as period_pos,2 as queue_counter,1 as day_type  from dual union Select GenGUID() as rw_id,'default' as calendar_id,3 as period_pos,3 as queue_counter,1 as day_type  from dual union Select GenGUID() as rw_id,'default' as calendar_id,4 as period_pos,4 as queue_counter,1 as day_type  from dual union Select GenGUID() as rw_id,'default' as calendar_id,5 as period_pos,5 as queue_counter,3 as day_type from dual)</insert>
+    <insert>INSERT INTO day_type_queue Select * from (Select GenGUID() as rw_id,'short' as calendar_id,3 as period_pos,3 as queue_counter,1 as day_type  from dual union Select GenGUID() as rw_id,'short' as calendar_id,5 as period_pos,5 as queue_counter,3 as day_type  from dual)</insert>
+  </table>
+  <table>
+    <name>calendar_day_exeptions</name>
+    <field>
+      <fname>rw_id</fname>
+      <type>GUID PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>calendar_id</fname>
+      <type>VARCHAR(40) CONSTRAINT FK_cal2 REFERENCES calendar_hdr (id) ON UPDATE CASCADE ON DELETE CASCADE</type>
+    </field>
+    <field>
+      <fname>Exeption_day</fname>
+      <type>DATETIME NOT NULL</type>
+    </field>
+    <field>
+      <fname>day_type</fname>
+      <type>INTEGER NOT NULL CONSTRAINT FK_day_id2 REFERENCES calendar_types_day (day_id)</type>
+    </field>
+    <field>
+      <fname>CONSTRAINT CN_exept</fname>
+      <type>UNIQUE (calendar_id,Exeption_day)</type>
+    </field>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2019-1-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-1-6#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-4-21#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-4-22#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2019-5-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-5-3#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-6-9#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-6-20#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2019-8-15#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-11-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-11-11#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2019-12-25#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2020-1-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-1-6#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-4-12#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-4-13#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2020-5-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-5-3#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-5-31#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-6-11#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2020-8-15#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-11-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-11-11#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2020-12-25#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2021-1-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-1-6#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-4-4#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-4-5#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2021-5-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-5-3#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-5-23#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-6-3#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2021-8-15#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-11-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-11-11#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2021-12-25#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2022-1-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-1-6#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-4-17#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-4-18#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2022-5-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-5-3#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-6-5#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-6-16#' as Exeption_day,2 as day_type from dual)</insert>
+    <insert>INSERT INTO calendar_day_exeptions select * from (Select GenGUID() as rw_id,'default' as calendar_id,'#2022-8-15#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-11-1#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-11-11#' as Exeption_day,2 as day_type from dual union Select GenGUID() as rw_id,'default' as calendar_id,'#2022-12-25#' as Exeption_day,2 as day_type from dual)</insert>
+  </table>
+  <table>
+    <name>tbltype</name>
+    <field>
+      <fname>id</fname>
+      <type>counter PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>name</fname>
+      <type>varchar(40) not null</type>
+    </field>
+    <field>
+      <fname>description</fname>
+      <type>VARCHAR(200)</type>
+    </field>
+    <field>
+      <fname>Program</fname>
+      <type>varchar(250) NOT NULL</type>
+    </field>
+    <insert>INSERT INTO tbltype select * from (select 1 as id,'Word_Sub/Func' as name,'Uruchom wewnętrzną procedurę/funkcję Word' as description,'Word.Application' as Program from dual union select 2 as id,'Excel_Sub/Func' as name,'Uruchom wewnętrzną procedurę/funkcję Excel' as description,'Excel.Application' as Program from dual union select 3 as id,'Access_Sub/Func' as name,'Uruchom wewnętrzną procedurę/funkcję Access' as description,'Access.Application' as Program from dual union select 4 as id,'Shell' as name,'Otwórz plik w domyślnym programie' as description,'WMI_Process' as Program from dual union select 5 as id,'VBscript32bit' as name,'Uruchom program w wersji 32 bitowej' as description,'Cscript x32' as Program from dual union select 6 as id,'VBscript64bit' as name,'Uruchom program w wersji 64 bitowej' as description,'Cscript x64' as Program from dual)</insert>
+  </table>
+  <table>
+    <name>sched_task</name>
+  </table>
+  <table>
+    <name>sched_work</name>
+  </table>
+  <table>
+    <name>task_hdr</name>
+    <field>
+      <fname>id</fname>
+      <type>GUID PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>name</fname>
+      <type>varchar(40) NOT NULL</type>
+    </field>
+    <field>
+      <fname>description</fname>
+      <type>VARCHAR(200)</type>
+    </field>
+    <field>
+      <fname>state</fname>
+      <type>INTEGER NOT NULL CONSTRAINT FK_stat REFERENCES dbState (id)</type>
+    </field>
+  </table>
+  <table>
+    <name>tblWork</name>
+    <field>
+      <fname>id</fname>
+      <type>GUID PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>name</fname>
+      <type>varchar(40) NOT NULL</type>
+    </field>
+    <field>
+      <fname>description</fname>
+      <type>VARCHAR(200)</type>
+    </field>
+    <field>
+      <fname>type</fname>
+      <type>INTEGER NOT NULL CONSTRAINT FK_Ftype REFERENCES tblType (id)</type>
+    </field>
+    <field>
+      <fname>Path</fname>
+      <type>VARCHAR(200)</type>
+    </field>
+    <field>
+      <fname>SUB_FUNCTION</fname>
+      <type>VARCHAR(200)</type>
+    </field>
+    <field>
+      <fname>Param</fname>
+      <type>VARCHAR(200)</type>
+    </field>
+    <field>
+      <fname>Paralel</fname>
+      <type>BIT</type>
+    </field>
+  </table>
+  <table>
+    <name>task_work</name>
+    <field>
+      <fname>id</fname>
+      <type>GUID PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>item_no</fname>
+      <type>INTEGER NOT NULL</type>
+    </field>
+    <field>
+      <fname>id_task</fname>
+      <type>GUID NOT NULL CONSTRAINT FK_id_task REFERENCES task_hdr (id) ON UPDATE CASCADE ON DELETE CASCADE</type>
+    </field>
+    <field>
+      <fname>id_work</fname>
+      <type>GUID NOT NULL CONSTRAINT FK_id_work REFERENCES tblWork (id) ON UPDATE CASCADE ON DELETE CASCADE</type>
+    </field>
+    <field>
+      <fname>CONSTRAINT CN_item_no</fname>
+      <type>UNIQUE (id,item_no)</type>
+    </field>
+  </table>
+  <table>
+    <name>schedule</name>
+    <field>
+      <fname>id_shed</fname>
+      <type>GUID PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>sched_name</fname>
+      <type>VARCHAR(50) not null</type>
+    </field>
+    <field>
+      <fname>id_task</fname>
+      <type>GUID NOT NULL CONSTRAINT FK_task_in_shed REFERENCES task_hdr (id)</type>
+    </field>
+    <field>
+      <fname>prioity</fname>
+      <type>INTEGER</type>
+    </field>
+    <field>
+      <fname>calendar_id</fname>
+      <type>VARCHAR(40) NOT NULL CONSTRAINT FK_cal_hdr REFERENCES calendar_hdr (id) ON UPDATE CASCADE</type>
+    </field>
+    <field>
+      <fname>time_exec</fname>
+      <type>DOUBLE</type>
+    </field>
+    <field>
+      <fname>state</fname>
+      <type>INTEGER NOT NULL CONSTRAINT FK_statussch REFERENCES dbState (id)</type>
+    </field>
+  </table>
+  <table>
+    <name>schedule_timer</name>
+    <field>
+      <fname>id_timer</fname>
+      <type>GUID PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>id_shed</fname>
+      <type>GUID NOT NULL CONSTRAINT FK_shed_hdr REFERENCES schedule (id_shed) ON UPDATE CASCADE ON DELETE CASCADE</type>
+    </field>
+    <field>
+      <fname>start_hour</fname>
+      <type>DATETIME not NULL</type>
+    </field>
+  </table>
+  <table>
+    <name>schedule_history</name>
+    <field>
+      <fname>id</fname>
+      <type>GUID PRIMARY KEY</type>
+    </field>
+    <field>
+      <fname>id_task</fname>
+      <type>GUID NOT NULL CONSTRAINT FK_id_hist REFERENCES task_hdr (id) ON UPDATE CASCADE ON DELETE CASCADE</type>
+    </field>
+    <field>
+      <fname>start</fname>
+      <type>DATETIME not NULL</type>
+    </field>
+    <field>
+      <fname>state</fname>
+      <type>INTEGER NOT NULL CONSTRAINT FK_histstat REFERENCES dbtaskenum (id)</type>
+    </field>
+    <field>
+      <fname>real_start</fname>
+      <type>DATETIME</type>
+    </field>
+    <field>
+      <fname>real_end</fname>
+      <type>DATETIME</type>
+    </field>
+  </table>
+</schema>

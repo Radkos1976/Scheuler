@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Strict//EN">
+<html>
+<head>
+     <meta charset="UTF-8" />
+     <title>Ustawienia Serwisu</title>
+
+     <HTA:APPLICATION
+          APPLICATIONNAME="Ustawienia Serwisu"
+          SCROLL="yes"
+          SINGLEINSTANCE="yes"
+     >
+</head>
+<script language="VBScript">
+Dim objCurrDir,t_db_connection_String,t_db_connection_crea_String,t_refr_task_fromDtbase_intrv
+Dim t_refr_settings_intrv,t_main_loop_interval,t_db_path_forLogs,t_db_fulpath,serv_state
+Sub Window_onLoad()
+  SetCurrDir
+  Get_settings
+  refr_servic_btn
+End Sub
+Sub refr_servic_btn
+  if check_service=true then
+    document.getElementById("serv").value="Wyłącz działanie Serwisu"
+  else
+  'document.getElementById("serv").value= "Scheduler_" & Replace(objCurrDir,"\","_")
+  document.getElementById("serv").value="Uruchom serwis"
+  end if
+end sub
+sub GEt_folder_nam
+    document.getElementById("Nazwa_bazy").value=SelectFolder(document.getElementById("Nazwa_bazy").value) & "\Scheduler.accdb"
+    refr_servic_btn
+end sub
+sub GEt_logfolder_nam
+    document.getElementById("Log_path").value=SelectFolder(document.getElementById("Log_path").value)
+    refr_servic_btn
+end sub
+Sub Sav_settings
+  On Error resume Next
+  if FileExists(objCurrDir & "\Scripts\" & "settings.xml")=True Then
+    dim settingsXML:Set settingsXML = CreateObject("MSXML2.DOMDocument")
+      With settingsXML
+        .SetProperty "SelectionLanguage", "XPath"
+        .SetProperty "ProhibitDTD", False
+        .ValidateOnParse =  True
+        .Async = False
+        .Load objCurrDir & "\Scripts\" & "settings.xml"
+      End With
+      if settingsXML.parseError.errorCode<>0 then
+        dim myErr: set myErr= settingsXML.parseError
+        Call Err.Raise(vbObjectError + 10,"You have error in XML => " & objCurrDir & "\Scripts" & "settings.xml => " + myErr.reason)
+      else
+        settingsXML.selectSingleNode("scheduler/db_connection_String").text="Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=" & document.getElementById("Nazwa_bazy").value & ";UID=Admin;PWD= ;"
+        settingsXML.selectSingleNode("scheduler/db_create_connection_String").text="Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & document.getElementById("Nazwa_bazy").value & ";"
+        settingsXML.selectSingleNode("scheduler/refr_task_fromDtbase_intrv").text=document.getElementById("DBIntervl").value
+        settingsXML.selectSingleNode("scheduler/refr_settings_intrv").text=document.getElementById("SRIntervl").value
+        settingsXML.selectSingleNode("scheduler/main_loop_interval").text=document.getElementById("Intervl").value
+        settingsXML.selectSingleNode("scheduler/db_path_forLogs").text=document.getElementById("Log_path").value
+        settingsXML.selectSingleNode("scheduler/db_fulpath").text=document.getElementById("Nazwa_bazy").value
+      End if
+      settingsXML.save objCurrDir & "\Scripts\" & "settings.xml"
+      Set settingsXML=Nothing
+      refr_servic_btn
+    end if
+end sub
+Sub Get_settings
+  get_XML
+  document.getElementById("Nazwa_bazy").value = t_db_fulpath
+  document.getElementById("Log_path").value =t_db_path_forLogs
+  document.getElementById("Intervl").value = t_main_loop_interval
+  document.getElementById("DBIntervl").value = t_refr_task_fromDtbase_intrv
+  document.getElementById("SRIntervl").value = t_refr_settings_intrv
+end sub
+Sub SetCurrDir()
+   Set objFSO = CreateObject("Scripting.FileSystemObject")
+   Set WshShell = CreateObject("WScript.Shell")
+   strHtmlLocnVal = document.location.href
+   strThisHTA = Replace(Right(strHtmlLocnVal, Len(strHtmlLocnVal) - 8), "/", "\")
+   strThisHTA = UnEscape(strThisHTA)
+   Set objThisFile = objFSO.GetFile(strThisHTA)
+   objParentDir = objThisFile.ParentFolder
+   Set objFolder = objFSO.GetFolder(objParentDir)
+   objCurrDir = objFolder.Path
+   WshShell.CurrentDirectory = objCurrDir
+end sub
+Function SelectFolder( myStartFolder )
+    Dim objFolder, objItem, objShell
+    On Error Resume Next
+    SelectFolder = myStartFolder
+    Set objShell  = CreateObject("Shell.Application")
+    Set objFolder = objShell.BrowseForFolder( 0, "Wybierz Folder", 0,0 )
+    If IsObject( objfolder ) Then SelectFolder = objFolder.Self.Path
+    Set objFolder = Nothing
+    Set objshell  = Nothing
+    On Error Goto 0
+End Function
+Public sub get_XML
+  On Error resume Next
+  if FileExists(objCurrDir & "\Scripts\" & "settings.xml")=True Then
+    dim settingsXML:Set settingsXML = CreateObject("MSXML2.DOMDocument")
+      With settingsXML
+        .SetProperty "SelectionLanguage", "XPath"
+        .SetProperty "ProhibitDTD", False
+        .ValidateOnParse =  True
+        .Async = False
+        .Load objCurrDir & "\Scripts\" & "settings.xml"
+      End With
+      if settingsXML.parseError.errorCode<>0 then
+        dim myErr: set myErr= settingsXML.parseError
+        Call Err.Raise(vbObjectError + 10,"You have error in XML => " & objCurrDir & "\Scripts" & "settings.xml => " + myErr.reason)
+      else
+        t_db_connection_String=settingsXML.selectSingleNode("scheduler/db_connection_String").text
+        t_db_connection_crea_String=settingsXML.selectSingleNode("scheduler/db_create_connection_String").text
+        t_refr_task_fromDtbase_intrv=settingsXML.selectSingleNode("scheduler/refr_task_fromDtbase_intrv").text
+        t_refr_settings_intrv=settingsXML.selectSingleNode("scheduler/refr_settings_intrv").text
+        t_main_loop_interval=settingsXML.selectSingleNode("scheduler/main_loop_interval").text
+        t_db_path_forLogs=settingsXML.selectSingleNode("scheduler/db_path_forLogs").text
+        t_db_fulpath=settingsXML.selectSingleNode("scheduler/db_fulpath").text
+      End if
+      Set settingsXML=Nothing
+    end if
+  end Sub
+  Function FileExists(FilePath)
+       dim fso
+      Set fso = CreateObject("Scripting.FileSystemObject")
+        If fso.FileExists(FilePath) Then
+          FileExists=CBool(1)
+        Else
+          FileExists=CBool(0)
+        End If
+      Set fso = Nothing
+    End Function
+Public sub nssm
+  Set r32wShell = CreateObject("WScript.Shell")
+  if not check_service then
+    call r32wShell.run("cscript.exe " & objCurrDir & "\Scripts\run.vbs",0)
+  Else
+    call r32wShell.run("cscript.exe " & objCurrDir & "\Scripts\end.vbs",0)
+  end if
+  window.setTimeOut "refr_servic_btn", 2000
+end sub
+Public sub nssm1
+    Set r32wShell = CreateObject("WScript.Shell")
+    if not check_service then
+      r32wShell.run(objCurrDir & "\Scripts\nssm install Scheduler_" & Replace(objCurrDir,"\","_") &  " C:\Windows\system32\cscript.exe " & objCurrDir & "\Scripts\serv_maintain.vbs")
+        r32wShell.run(objCurrDir & "\Scripts\nssm start Scheduler_" & Replace(objCurrDir,"\","_"))
+    Else
+      r32wShell.run(objCurrDir & "\Scripts\nssm remove Scheduler_" & Replace(objCurrDir,"\","_") )
+    end if
+    Set r32wShell=Nothing
+
+    window.setTimeOut "refr_servic_btn", 10000
+end Sub
+function check_service
+  Dim objWMIService ,colProcesses,objitem
+  Dim strComputer:strComputer = "."
+  Set objWMIService = GetObject("winmgmts:" _
+    & "{impersonationLevel=impersonate}!\\" & strComputer & "\root\cimv2")
+  Set colProcesses = objWMIService.ExecQuery _
+    ("SELECT * FROM Win32_Process WHERE Name = 'cscript.exe'")
+      dim cnt:cnt=0
+      For Each objitem In colProcesses
+        if instr(1,objitem.CommandLine,  objCurrDir & "\Scripts\serv_maintain.vbs")>0 then
+          cnt=cnt+1
+
+        end if
+      Next
+    if cnt>0 then
+      check_service=True
+    Else
+      check_service=False
+    end if
+    Set colProcesses=Nothing
+    Set objWMIService=Nothing
+end Function
+function check_service1
+  Dim objWMIService ,colProcesses,objitem
+  Dim strComputer:strComputer = "."
+  Set objWMIService = GetObject("winmgmts:" _
+    & "{impersonationLevel=impersonate}!\\" & strComputer & "\root\cimv2")
+  Set colProcesses = objWMIService.ExecQuery _
+    ("SELECT DisplayName, Status FROM Win32_Service WHERE DisplayName = 'Scheduler_" & Replace(objCurrDir,"\","_") & "'")
+      dim cnt:cnt=0
+      For Each objitem In colProcesses
+        if objitem.DisplayName="Scheduler_" & Replace(objCurrDir,"\","_") then
+          cnt=cnt+1
+          serv_state=objitem.Status
+        end if
+      Next
+    if cnt>0 then
+      check_service=True
+    Else
+      check_service=False
+    end if
+    Set colProcesses=Nothing
+    Set objWMIService=Nothing
+end Function
+</script>
+<body>
+  <h1>Ustawienia Serwisu</h1>
+  <div>
+    <h2>Baza danych</a></h2>
+    <input type="button" value="Pobierz aktualne ustawienia serwisu" name="run_button" onClick="Get_settings">
+    <input type="button" value="Zapisz ustawienia serwisu" name="sav_button" onClick="Sav_settings">
+    <input type="button" id="serv" value="Uruchom zadania" name="sav_button" onClick="nssm">
+    <h2></h2>
+    <div>
+      <span> Ścieżka do bazy danych (jeśli baza nie istnieje to zostanie utworzona przy starcie serwisu) <br> Dozwolone rozszerzenia bazy - (*.accdb , *.accde , *.mdb , *.mde ) <br></span>
+      <input type="text" id="Nazwa_bazy" Style="width:700px;" />
+      <input type="button" value="..." name="run_button"  onClick="GEt_folder_nam">
+    </div>
+    <div>
+      <span> Ścieżka przechowywania logów z działania poszczególnych serwisów <br> </span>
+      <input type="text" id="Log_path" Style="width:700px;" />
+      <input type="button" value="..." name="run_button"  onClick="GEt_logfolder_nam">
+    </div>
+    <div>
+      <span>Interwał odświeżania głównej pętli Serwisu [sek]<br> </span>
+      <input type="text" id="Intervl" Style="width:300px;" />
+    </div>
+    <div>
+      <span>Liczba cykli serwisu dla odświeżenia danych z bazy<br> </span>
+      <input type="text" id="DBIntervl" Style="width:300px;" />
+    </div>
+    <div>
+      <span>Liczba cykli dla odświeżenia ustawień  serwisu<br> </span>
+      <input type="text" id="SRIntervl" Style="width:300px;" />
+    </div>
+  <br>
+</body>
+</html>
