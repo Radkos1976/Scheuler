@@ -8,7 +8,7 @@
     </field>
     <field>
       <fname>Val_variab</fname>
-      <type>Text(55)</type>
+      <type>Text(500)</type>
     </field>
   </table>
   <table>
@@ -41,7 +41,7 @@
       <fname>state</fname>
       <type>varchar(20) NOT NULL</type>
     </field>
-    <insert>INSERT INTO dbtaskenum select * from  (select 1 as id,'Zaplanowane' as state from dual union select 2 as id,'Aktywne' as state from dual union select 5 as id,'Rozpoczęte' as state from dual union select 4 as id,'Zamknięte' as state from dual union select 6 as id,'Błąd Wykonania' as state from dual union select 3 as id,'Wykonanie wstrzymane' as state from dual union select 7 as id,'Wymuszone Wykonanie' as state from dual union  select 8 as id,'Do przerwania' as state from dual union  select 9 as id,'Przerwane' as state from dual)</insert>
+    <insert>INSERT INTO dbtaskenum select * from  (select 1 as id,'Zaplanowane' as state from dual union select 2 as id,'Aktywne' as state from dual union select 5 as id,'Rozpoczęte' as state from dual union select 4 as id,'Zamknięte' as state from dual union select 6 as id,'Błąd Wykonania' as state from dual union select 3 as id,'Wykonanie wstrzymane' as state from dual union select 7 as id,'Wymuszone Wykonanie' as state from dual union  select 8 as id,'Do przerwania' as state from dual union  select 9 as id,'Przerwane' as state from dual union select 10 as id,'Czas wykonania minął' as state from dual)</insert>
   </table>
   <table>
     <name>calendar_types_day_hdr</name>
