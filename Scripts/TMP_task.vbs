@@ -126,7 +126,7 @@ Class Task
     with rs_work
       .ActiveConnection = objCon
       .CursorLocation = 3
-      .LockType=4
+      .LockType=1
       .open "SELECT hdr.id as hdr_id,hdr.name as hdr_name,wrk.item_no,app.program,'0' as on_wrk,tp.* from task_hdr as hdr,task_work as wrk,tblWork as tp ,tbltype as app where hdr.id='" & self_id & "' and hdr.id=wrk.id_task and wrk.id_work=tp.id and tp.type=app.id order by wrk.item_no"
     end with
     Set rs_work.ActiveConnection = Nothing

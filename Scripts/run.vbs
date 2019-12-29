@@ -24,5 +24,5 @@ objConfig.ShowWindow = HIDDEN_WINDOW
 If chk<>"true" Then
 Set objProcess = objWMIService.Get("Win32_Process")
 intReturn = objProcess.Create _
-    ("cscript.exe " & scriptfullPath & "\serv_maintain.vbs", Null, objConfig, intProcessID)
+    ("C:\Windows\system32\cscript.exe " & scriptfullPath & "\serv_maintain.vbs", Null, objConfig, intProcessID)
 end if

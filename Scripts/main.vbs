@@ -33,7 +33,7 @@ Class Settings
   End Property
   'get dta from XML
   Private sub regenerate_calendars
-    on error resume next
+    On Error resume Next
     Dim oDb : Set oDb = CreateObject("ADODB.CONNECTION")
     oDb.Open t_db_connection_String
     Dim oRs : Set oRs = CreateObject("ADODB.Recordset")
@@ -60,7 +60,6 @@ Class Settings
     Else
       WScript.Echo(now() & " Calendars object created")
     End If
-    On Error Goto 0
   end sub
   Public sub get_XML
     On Error resume Next
@@ -97,10 +96,9 @@ Class Settings
           WScript.Quit
       End If
     End if
-    On Error Goto 0
   End Sub
   Private sub check_Database
-    On error resume Next
+    On Error resume Next
     WScript.Echo(now() & " Start Checking Database")
     if not FileExists(t_db_fulpath) Then
       WScript.Echo(now() & " Database don't exist => Create NEW : => " + t_db_fulpath)
@@ -222,7 +220,7 @@ Class Settings
     End If
   End sub
   Private sub check_HelpersDB
-    on error resume Next
+    On Error resume Next
     WScript.Echo(now() & " Check is Helper Database Exist => " & scriptfullPath & "Log_Helper.mde")
     if not FileExists(scriptfullPath & "Log_Helper.mde") Then
       WScript.Echo(now() & " Db_path " & t_db_fulpath)
@@ -276,7 +274,7 @@ Class Calendar_Queue
        Day_type =rs_type_queue("day_type")
     End Property
     Public default function init(Dbpath,cal_ids)
-      on error resume next
+      On Error resume Next
       WScript.echo Now() & (" Obiekt kolejka Kalendarza : " & cal_ids)
       Dim objCon:Set objCon = CreateObject("ADODB.Connection")
       objCon.Open (Dbpath)
@@ -304,7 +302,7 @@ Class Calendar_Queue
     end Function
     'check data in table'
     Private function check_integr_data
-      on error resume next
+      On Error resume Next
         Wscript.echo Now() & (" Sprawdzenie poprawnosci kolejki")
         rs_len=rs_type_queue.RecordCount
         rs_type_queue.movefirst
@@ -341,7 +339,7 @@ Class Calendar_Queue
       set rs_type_queue=nothing
     End Sub
     Public function get_first_calendar_day(start_date)
-        on error resume next
+        On Error resume Next
         dim tmp_day,cnt
         dim day_start: day_start =weekday(cdate(start_date))
         rs_type_queue.filter=("queue_counter=" & day_start)
@@ -390,9 +388,9 @@ Class Scheduler
   Private t_main_loop_interval,t_refr_task_fromDtbase_intrv,t_refr_settings_intrv
   Private t_db_connection_String,t_db_path_forLogs,serv_control
   Private t_count_activeTask,t_enviroments,tmp_wmiRctset
-  Private t_work_to_do,t_db_fulpath
+  Private t_work_to_do,t_old_work_to_do,t_db_fulpath
   Private function Check_serv_maintainExist
-    on error Resume Next
+    On Error resume Next
     Dim objWMIService ,colProcesses,objitem
     dim strComputer:strComputer = "."
     Set objWMIService = GetObject("winmgmts:" _
@@ -417,24 +415,105 @@ Class Scheduler
       end if
     Set colProcesses=Nothing
     Set objWMIService=Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end Function
+  Private sub Report_task_Notdoo(Id,rlStart)
+    on error resume Next
+    WScript.Echo(now() & " Log do bazy nie wykonanie zadania w czasie => " & id & " z godziny => " & rlStart )
+    Dim objCon:Set objCon = CreateObject("ADODB.Connection")
+    objCon.Open (t_db_connection_String)
+      objCon.Execute("INSERT INTO schedule_history (id,id_task,start,state,real_start,real_end) values ('" & genGUID & "','" & id & "'," & replace(cdbl(cdate(rlStart)),",",".") & ",10," & replace(cdbl(cdate(now())),",",".") & ", " & replace(cdbl(cdate(now())),",",".") & " )")
+    objCon.Close
+    set objCon=Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
+  end sub
+  Private sub Log_end_of_time_forTask
+    on error resume next
+   dim chk:chk=False
+   dim chk1 :chk1=False
+   WScript.Echo(now() & " Sprawdzam przeterminowane zadania")
+   With t_old_work_to_do
+    .filter="status=2"
+    'WScript.Echo(now() & " Sprawdzam przeterminowane zadania krok1")
+      if not .EOF Then
+        'WScript.Echo(now() & " Sprawdzam przeterminowane zadania krok2")
+        t_work_to_do.filter="status<3 or status=7"
+        t_work_to_do.Sort="start"
+        .Sort="start"
+        .movefirst
+        dim time_off:time_off=cdbl(now()-(60/1440)+(5/1440))
+        DO until .EOF or chk1=True
+        'WScript.Echo(now() & " Sprawdzam przeterminowane zadania krok3")
+          if CDbl(cdate(.fields("start"))) < time_off then
+            WScript.Echo(now() & " Task zagrozony nie wykonaniem => " & .fields("id") & " z planowanej daty => " & .fields("start"))
+            t_work_to_do.filter="id='" & .fields("id") & "'"
+            t_work_to_do.Sort="start"
+
+            if not t_work_to_do.eof then
+                WScript.Echo(now() & " Sprawdzam przeterminowane zadania  => " & t_work_to_do("id"))
+                chk=False
+                t_work_to_do.movefirst
+                DO until t_work_to_do.eof or chk=True
+                  WScript.Echo(now() & " Sprawdzam przeterminowane zadania krok4 => " & t_work_to_do("start") & " => " & t_work_to_do("id"))
+                  if round(cdbl(t_work_to_do("start")),5)=round(cdbl(.fields("start")),5) then
+                    WScript.Echo(now() & " Task znaleziony w bieżacych danych")
+                    chk=True
+                  end if
+                  t_work_to_do.movenext
+                LOOP
+                if chk=False then Call Report_task_Notdoo(.fields("id"),.fields("start"))
+            Else
+               call Report_task_Notdoo(.fields("id"),.fields("start"))
+            end if
+          Else
+          WScript.Echo(now() & " Koncze sprawdzanie przeterminowanych taskow")
+           chk1=True
+          end if
+          .movenext
+        LOOP
+      end if
+      .filter=0
+      t_work_to_do.filter=0
+    end with
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
+  end sub
   private sub Get_list_of_schedule
-    'on error goto Err_conn
+    on error resume next
+    dim have_old_tasklst: have_old_tasklst=False
     WScript.Echo(now() & " Pobieram dane z bazy danych")
     Dim objCon:Set objCon = CreateObject("ADODB.Connection")
     objCon.Open (t_db_connection_String)
+    if not IsEmpty(t_work_to_do)  then
+      Set t_old_work_to_do = t_work_to_do.clone(1)
+      have_old_tasklst=True
+    end if
     Set t_work_to_do = CreateObject("ADODB.Recordset")
     with t_work_to_do
       .ActiveConnection = objCon
       .CursorLocation = 3
       .LockType=4
-      .open "SELECT TOP " & t_count_activeTask+150 & " aq.id, aq.start, aq.real_start, aq.name, aq.description, aq.time_exec, aq.priority, aq.status,c.state as st_enum FROM (select * from (Select a.id, a.start,b.real_start, a.name, a.description,a.priority ,iif(isnull(b.state),a.state,b.state) as status,a.time_exec from (SELECT hdr.id, w.work_day+tim.start_hour AS start, hdr.name, hdr.description, hdr.state,sch.time_exec,max(sch.prioity) as priority FROM schedule AS sch,(select id_shed, start_hour from (SELECT id_shed, start_hour FROM schedule_timer) UNION (SELECT id_shed, start_hour+1 FROM schedule_timer) )  AS tim,task_hdr AS hdr,(SELECT c_w.calendar_id, c_w.cal_counter, c_w.work_day, c_w.work_day+IIf(isnull(tp.start_hour),0,tp.start_hour) AS Start_work,c_w.work_day+IIf(isnull(tp.end_hour),1,tp.end_hour) AS End_work FROM calendar_wrk AS c_w,calendar_hdr AS chdr,calendar_types_day AS tp WHERE chdr.id=c_w.calendar_id and chdr.state<3 and c_w.work_day>= date()-1 and tp.day_id=c_w.day_id ORDER BY cal_counter)  AS w WHERE (((hdr.id)=[sch].[id_task]) AND ((hdr.state)<3) AND ((w.calendar_id)=[sch].[calendar_id]) AND (([w].[work_day]+[tim].[start_hour])>(select Now()-(60/1440) from dual ) And ([w].[work_day]+[tim].[start_hour]) Between [w].[Start_work] And [w].[End_work]) AND ((sch.state)<3) AND ((sch.id_shed)=[tim].[id_shed])) GROUP BY hdr.id, w.work_day+tim.start_hour, hdr.name, hdr.description, hdr.state,sch.time_exec ORDER BY w.work_day+tim.start_hour) as a left join (SELECT * from schedule_history where start>(select Now()-(60/1440) from dual ) ) as b on round(cdbl(b.start),5)=round(cdbl(a.start),5) and a.id=b.id_task where iif(isnull(b.state),a.state,b.state)<>7) UNION (select aql.id, aql.start,aql.real_start, aql.name, aql.description,aql.priority,iif(ab.cnt>1 ,5,aql.state) as status,0  from (Select a.id, b.start,b.real_start, a.name, a.description,100 as priority,b.state from task_hdr AS a,schedule_history as b where b.start>(select Now()-(60/1440) from dual ) and b.state=7 and b.id_task=a.id)  AS aql left join (Select id_task,round(cdbl(start),5) as rdat,count(id) as cnt from schedule_history where state in (5,7) group by id_task,round(cdbl(start),5))  as ab on  aql.id=ab.id_task and round(cdbl(aql.start),5)=ab.rdat) UNION (Select a.id, d.start,d.real_start, a.name, a.description,100 ,d.state as status,0 FROM task_hdr AS a,(select b.id_task,b.start,b.real_start,b.state,c.time_exec from schedule_history as b left join schedule as c on b.id_task=c.id_task) as d where d.state in (5,8) and d.id_task=a.id and d.start<=(select Now()-(60/1440) from dual )))  AS aq, dbtaskenum AS c WHERE (((c.id)=[aq].[status])) ORDER BY aq.start, aq.priority DESC;"
+      .open "SELECT TOP " & t_count_activeTask+100 & " aq.id, aq.start, aq.real_start, aq.name, aq.description, aq.time_exec, aq.priority, aq.status,c.state as st_enum FROM (select * from (Select a.id, a.start,b.real_start, a.name, a.description,a.priority ,iif(isnull(b.state),a.state,b.state) as status,a.time_exec from (SELECT hdr.id, w.work_day+tim.start_hour AS start, hdr.name, hdr.description, hdr.state,sch.time_exec,max(sch.prioity) as priority FROM schedule AS sch,(select id_shed, start_hour from (SELECT id_shed, start_hour FROM schedule_timer) UNION (SELECT id_shed, start_hour+1 FROM schedule_timer) )  AS tim,task_hdr AS hdr,(SELECT c_w.calendar_id, c_w.cal_counter, c_w.work_day, c_w.work_day+IIf(isnull(tp.start_hour),0,tp.start_hour) AS Start_work,c_w.work_day+IIf(isnull(tp.end_hour),1,tp.end_hour) AS End_work FROM calendar_wrk AS c_w,calendar_hdr AS chdr,calendar_types_day AS tp WHERE chdr.id=c_w.calendar_id and chdr.state<3 and c_w.work_day>= date()-1 and tp.day_id=c_w.day_id ORDER BY cal_counter)  AS w WHERE (((hdr.id)=[sch].[id_task]) AND ((hdr.state)<3) AND ((w.calendar_id)=[sch].[calendar_id]) AND (([w].[work_day]+[tim].[start_hour])>(select Now()-(60/1440) from dual ) And ([w].[work_day]+[tim].[start_hour]) Between [w].[Start_work] And [w].[End_work]) AND ((sch.state)<3) AND ((sch.id_shed)=[tim].[id_shed])) GROUP BY hdr.id, w.work_day+tim.start_hour, hdr.name, hdr.description, hdr.state,sch.time_exec ORDER BY w.work_day+tim.start_hour) as a left join (SELECT * from schedule_history where start>(select Now()-(60/1440) from dual ) ) as b on round(cdbl(b.start),5)=round(cdbl(a.start),5) and a.id=b.id_task where iif(isnull(b.state),a.state,b.state)<>7) UNION (select aql.id, aql.start,aql.real_start, aql.name, aql.description,aql.priority,iif(ab.cnt>1 ,5,aql.state) as status,0  from (Select a.id, b.start,b.real_start, a.name, a.description,100 as priority,b.state from task_hdr AS a,schedule_history as b where b.start>(select Now()-(60/1440) from dual ) and b.state=7 and b.id_task=a.id)  AS aql left join (Select id_task,round(cdbl(start),5) as rdat,count(id) as cnt from schedule_history where state in (5,7) group by id_task,round(cdbl(start),5))  as ab on  aql.id=ab.id_task and round(cdbl(aql.start),5)=ab.rdat) UNION (Select a.id, d.start,d.real_start, a.name, a.description,100 ,d.state as status,0 FROM task_hdr AS a,(select b.id_task,b.start,b.real_start,b.state,c.time_exec from schedule_history as b left join schedule as c on b.id_task=c.id_task) as d where d.state in (5,8) and d.id_task=a.id and d.start<=(select Now()-(60/1440) from dual )))  AS aq, dbtaskenum AS c WHERE (((c.id)=[aq].[status])) ORDER BY aq.start, aq.priority DESC;"
     end with
     Set t_work_to_do.ActiveConnection = Nothing
     objCon.close
     Set objCon=Nothing
+    if have_old_tasklst then Log_end_of_time_forTask
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   End Sub
   Private sub Count_activeTasks
+    on error resume Next
     Dim strComputer:strComputer = "."
     Dim objWMIService:Set objWMIService = GetObject("winmgmts:" _
       & "{impersonationLevel=impersonate}!\\" & strComputer & "\root\cimv2")
@@ -450,12 +529,22 @@ Class Scheduler
     t_count_activeTask=cnt
     Set colProcesses=Nothing
     Set objWMIService=Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end Sub
   private Function Count_Db_activeTasks
+    on error resume Next
       t_work_to_do.filter="status=5"
       Count_Db_activeTasks=t_work_to_do.RecordCount
+      If Err.Number <> 0 Then
+          WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+            & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+      end if
   end Function
   Private sub Delete_unuseful_tasks
+    on error resume Next
     IF t_count_activeTask<>Count_Db_activeTasks or t_count_activeTask=0  Then
       dim objFile
       dim objFSO :Set objFSO = CreateObject("Scripting.FileSystemObject")
@@ -481,8 +570,13 @@ Class Scheduler
       Set colFiles = Nothing
       if chk then checkOLDER_reportedDB_not_existWMI
     end if
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end sub
   Private sub Report_start_work(TaskID,TaskName,start,stat)
+    on error resume Next
     Dim objCon:Set objCon = CreateObject("ADODB.Connection")
     objCon.Open (t_db_connection_String)
     if stat=7 Then
@@ -492,8 +586,13 @@ Class Scheduler
     end if
     objCon.Close
     set objCon=Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end sub
   Private Function Prepare_task_toRun(TaskID,TaskName,start,stat)
+    on error resume Next
       WScript.Echo(now() & " Uruchamiam Task:" & TaskID & "  name:" & TaskName & "   "  & now())
       call Report_start_work(TaskID,TaskName,start,stat)
       if not FileExists(scriptfullPath & "TaskID;" & TaskID & ".vbs") then
@@ -503,8 +602,13 @@ Class Scheduler
       end if
       dim PID:PID=Launch_TASK(TaskID,TaskName)
       Prepare_task_toRun=PID
+      If Err.Number <> 0 Then
+          WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+            & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+      end if
   end function
   Private Function Check_MainTASK_IsWork (TaskID)
+    on error resume next
     Dim objWMIService ,colProcesses,objitem
     dim strComputer:strComputer = "."
     Set objWMIService = GetObject("winmgmts:" _
@@ -524,8 +628,13 @@ Class Scheduler
       end if
     Set colProcesses=Nothing
     Set objWMIService=Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end Function
   Private Function get_enviroments
+    on error resume Next
     'check what version of drivers are installed 64bit or 32 bit'
     Dim procc_ver:procc_ver=Check_ver
     dim chk:chk=False
@@ -578,8 +687,13 @@ Class Scheduler
           get_enviroments="Access Driver not Installed"
       end if
     end if
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end Function
   Function Check_ver
+    on error resume Next
     dim fso:Set fso = CreateObject("Scripting.FileSystemObject")
     dim wshShell:Set wshShell = CreateObject( "WScript.Shell" )
     If fso.FolderExists(wshShell.ExpandEnvironmentStrings("%windir%") & "\sysnative" ) Then
@@ -587,6 +701,10 @@ Class Scheduler
     Else
       Check_ver=64
     End if
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end function
   Function Num2digit(num)
     If(Len(num)=1) Then
@@ -603,6 +721,7 @@ Class Scheduler
     DTE_form= y &  m  & d
   End Function
   Private Function Launch_TASK(TaskID,TaskName)
+    on error resume Next
     Dim objWMIService,objProcess, intProcessID
     dim strComputer:strComputer = "."
     Set objWMIService = GetObject("winmgmts:" _
@@ -613,9 +732,13 @@ Class Scheduler
     'objConfig.CreateFlags=Create_New_Process_Group
     Set objProcess = objWMIService.Get("Win32_Process")
     wscript.echo now() & " " & (t_enviroments & " //NoLogo " & scriptfullPath & "TaskID;" & TaskID & ".vbs >> "  & t_db_path_forLogs  & "\" & DTE_form(date()) & "TaskID;" & TaskID & ".log")
-    Dim intReturn:intReturn = objProcess.Create ("cmd.exe /c" & t_enviroments & " //U //NoLogo " & scriptfullPath & "TaskID;" & TaskID & ".vbs >> "  & t_db_path_forLogs & "\" & DTE_form(date()) & "TaskID" & TaskID & ".log", Null, objConfig, intProcessID)
+    Dim intReturn:intReturn = objProcess.Create ("cmd.exe /c " & t_enviroments & " //U //NoLogo " & scriptfullPath & "TaskID;" & TaskID & ".vbs >> "  & t_db_path_forLogs & "\" & DTE_form(date()) & "TaskID" & TaskID & ".log", Null, objConfig, intProcessID)
       wscript.echo Now() & " ProcessID started PID => " & intProcessID
     Launch_TASK=intProcessID
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end Function
   Private Sub Get_settings
     On Error resume Next
@@ -632,7 +755,10 @@ Class Scheduler
         WScript.Echo now () & " Blad " & CStr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
     end if
-    On Error Goto 0
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   End sub
   Private Sub Check_Var_LogPath
     WScript.Echo(now() & " Sprawdzam ustawienia sciezki do logow")
@@ -647,6 +773,7 @@ Class Scheduler
     call Add_var_envir("Alive",cstr(Now()))
   end sub
   Private sub Add_var_envir(setting,setval)
+    on error resume next
     Dim objCon:Set objCon = CreateObject("ADODB.Connection")
     objCon.Open (t_db_connection_String)
     Dim logs_inf:Set logs_inf = CreateObject("ADODB.Recordset")
@@ -674,6 +801,10 @@ Class Scheduler
     end if
     set logs_inf= Nothing
     set objCon=Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end sub
   Private Sub Report_serv
     WScript.Echo (now() & " Sygnal istnienia do bazy")
@@ -697,6 +828,7 @@ Class Scheduler
     Main_Loop
   end Sub
   Private Sub Main_Loop
+    on error resume Next
     Dim dbcle,set_cle
     dbcle=0
     set_cle=0
@@ -711,7 +843,6 @@ Class Scheduler
       old_task=old_task+1
       if old_task>=600/t_main_loop_interval Then
         checkOLDER_reportedDB_not_existWMI
-
         old_task=0
       end if
       IF dbcLe >=t_refr_task_fromDtbase_intrv then
@@ -730,9 +861,15 @@ Class Scheduler
       Count_activeTasks
       Delete_unuseful_tasks
       check_Work
+      If Err.Number <> 0 Then
+          WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+            & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+            err.clear
+      end if
     LOOP
   End sub
   Private sub list_selected_Tree_processes(pid)
+    on error resume Next
     WScript.Echo(now() & " Pobieram liste procesow powiazanych z PID = > " & pid)
     dim r_proc(),curr_fld_item:curr_fld_item=0
     dim R_FLDS:R_FLDS=0
@@ -762,12 +899,22 @@ Class Scheduler
       loop until curr_fld_item => R_FLDS-1
       .filter=0
     end With
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end sub
   private function procc_to_del(Pid)
+    on error resume next
     tmp_wmiRctset.filter="PID=" & pid & " and Delete='Yes'"
     procc_to_del= not tmp_wmiRctset.eof
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end function
   private sub Terminate_processes (Pid)
+    on error resume next
     list_selected_Tree_processes(pid)
     Dim objWMIService ,colProcesses,objitem
     dim strComputer:strComputer = "."
@@ -782,8 +929,13 @@ Class Scheduler
         end if
       Set colProcesses=Nothing
       Set objWMIService=Nothing
+      If Err.Number <> 0 Then
+          WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+            & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+      end if
   end sub
   private sub get_childProcesses
+    on error resume next
     set tmp_wmiRctset =  CreateObject("ADODB.Recordset")
     With tmp_wmiRctset
       Set .ActiveConnection = Nothing
@@ -823,8 +975,13 @@ Class Scheduler
       end if
     Set colProcesses=Nothing
     Set objWMIService=Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end sub
   Private sub checkOLDER_reportedDB_not_existWMI
+    on error resume next
     WScript.Echo(now() & " Pobieram stare nie zakonczone taski z bazy danych")
     Dim objCon:Set objCon = CreateObject("ADODB.Connection")
     objCon.Open (t_db_connection_String)
@@ -877,7 +1034,6 @@ Class Scheduler
       set r_com_schedul.ActiveConnection=Nothing
       objCon.Close
       If not r_schedul.eof Then
-
         r_schedul.movefirst
         do until r_schedul.EOF
           WScript.Echo(now() & " Statystyki wykonania zadan => " & r_schedul("id_task"))
@@ -901,13 +1057,16 @@ Class Scheduler
           objCon.Close
         end if
       end if
-
     set r_schedul=Nothing
     set r_com_schedul=Nothing
     Set objCon=Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end sub
   Private sub check_reportedDB_not_existWMI
-    on error resume next
+    On Error resume Next
     'Check if some tesks are ended without no report in DB remove bug
     t_work_to_do.filter="status=5"
     if not t_work_to_do.eof Then
@@ -929,9 +1088,9 @@ Class Scheduler
         WScript.Echo now() & " Blad " & CStr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
     End If
-    On Error Goto 0
   end sub
   Private sub check_to_loongWrk_terminate
+    on error resume Next
     dim rst_chang:rst_chang=False
     WScript.Echo(now() & " Pobieram taski usuniecia z procesow")
     dim r_proc(),cnt,i
@@ -997,15 +1156,25 @@ Class Scheduler
         end if
         Set old_sweat=Nothing
         Set objCon=Nothing
+        If Err.Number <> 0 Then
+            WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+              & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+        end if
   end sub
   Private Sub check_terminate
+    on error resume Next
     dim r_proc(),cnt,i
     t_work_to_do.filter="status=8"
     if not t_work_to_do.eof Then
         check_to_loongWrk_terminate
     end if
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end sub
   Private Sub check_Work
+    on error resume next
     dim chk:chk=false
     t_work_to_do.filter="status<3 or status=7"
     t_work_to_do.Sort="start"
@@ -1025,8 +1194,13 @@ Class Scheduler
       loop
     end if
     t_work_to_do.filter=0
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end Sub
   private Sub Archive_logs(fFolder)
+    on error resume Next
     dim objFile
     dim objFSO :Set objFSO = CreateObject("Scripting.FileSystemObject")
     dim objFolder: Set objFolder = objFSO.GetFolder(fFolder)
@@ -1045,8 +1219,13 @@ Class Scheduler
     Set objFSO = Nothing
     Set objFolder = Nothing
     Set colFiles = Nothing
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end Sub
   Private Function Check_FileinZip_Exist (sFile, sZipFile)
+    on error resume Next
     Dim oZipApp:Set oZipApp = CreateObject("Shell.Application")
     Dim aFileName:aFileName = Split(sFile, "\")
     Dim sFileName:sFileName = (aFileName(Ubound(aFileName)))
@@ -1059,8 +1238,13 @@ Class Scheduler
       End If
     Next
     Check_FileinZip_Exist=sDupe
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   End Function
   Private Sub WindowsZip(sFile, sZipFile)
+    on error resume Next
     'This script is provided under the Creative Commons license located
     'at http://creativecommons.org/licenses/by-nc/2.5/ . It may not
     'be used for commercial purposes with out the expressed written consent
@@ -1086,7 +1270,7 @@ Class Scheduler
       If Not sDupe Then
       oZipApp.NameSpace(sZipFile).Copyhere sFile
       'Keep script waiting until Compressing is done
-      On Error Resume Next
+      On Error resume Next
         sLoop = 0
         Do Until sZipFileCount < oZipApp.NameSpace(sZipFile).Items.Count
           Wscript.Sleep(100)
@@ -1097,8 +1281,13 @@ Class Scheduler
       Set oZipApp=Nothing
       Set oZipFSO=Nothing
       Set oZipShell=Nothing
+      If Err.Number <> 0 Then
+          WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+            & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+      end if
   End Sub
   Private Sub NewZip(sNewZip)
+    on error resume next
     'This script is provided under the Creative Commons license located
     'at http://creativecommons.org/licenses/by-nc/2.5/ . It may not
     'be used for commercial purposes with out the expressed written consent
@@ -1110,8 +1299,13 @@ Class Scheduler
     Set oNewZipFile=Nothing
     Set oNewZipFSO = Nothing
     Wscript.Sleep(500)
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   End Sub
   Private sub Terminate_office(Pid_offtask,Task_nam_ID)
+    on error resume next
     wscript.Echo now() & " Sprawdzam czy process office istnieje do PID => " & Pid_offtask
     Dim objCon:Set objCon = CreateObject("ADODB.Connection")
     objCon.Open ("Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" + scriptfullPath & "Log_Helper.mde")
@@ -1150,11 +1344,16 @@ Class Scheduler
       Set objCon= Nothing
       set rs_resp = Nothing
      End if
+     If Err.Number <> 0 Then
+         WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+     end if
   End Sub
   Private sub Add_last_log(curr_log,Task_nam_ID)
 
   end sub
   private Function check_is_closed(Pid)
+    on Error resume Next
     dim proccexist:proccexist=False
     dim strComputer:strComputer = "."
     dim objWMIService:Set objWMIService = GetObject("winmgmts:" _
@@ -1168,6 +1367,10 @@ Class Scheduler
         Next
       end if
     check_is_closed=proccexist
+    If Err.Number <> 0 Then
+        WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
+          & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
   end function
 End Class
 Class Calendar
@@ -1194,7 +1397,7 @@ Class Calendar
     end if
   end function
   public sub Generate
-    on error resume Next
+    On Error resume Next
     Wscript.echo now() & (" Sprawdzam kalendarz : " & t_cal_ids)
     dim que:set que = (new Calendar_Queue) (t_Dbpath,t_cal_ids)
     que.get_first_calendar_day(Valid_from)
@@ -1265,7 +1468,7 @@ Class Calendar
     On Error Goto 0
   end Sub
   Public default function init(Dbpath,cal_ids)
-    on error resume next
+    On Error resume Next
     WScript.Echo(now() & " Tworze obiekt kalendarza : " & cal_ids)
     t_Dbpath=Dbpath
     t_cal_ids=cal_ids
