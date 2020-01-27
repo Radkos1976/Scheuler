@@ -1,4 +1,5 @@
 Option Explicit
+On error resume Next
 Const wdDoNotSaveChanges = 0
 dim ext_conn,g_CurrProcessId
 Dim ThrowErr:ThrowErr=False
@@ -629,7 +630,7 @@ Class Office_instance
         Wscript.echo String(150,"/")
         WScript.Echo now() & " Informacje z wykonywanego zadania "
         dim fso: Set fso = CreateObject("Scripting.FileSystemObject")
-        dim f:Set f = fso.OpenTextFile(rs_resp("curr_log"),1,False,-1)
+        dim f:Set f = fso.OpenTextFile(rs_resp("curr_log"),1,False,-2)
           Do Until f.AtEndOfStream
             WScript.Echo f.ReadLine
           Loop

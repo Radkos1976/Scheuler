@@ -7,9 +7,9 @@ dim scriptfullPath:scriptfullPath = replace(WScript.ScriptFullName,srcript_name,
 dim Sched : set Sched= new Scheduler
 Class Settings
   'Time intervals
-  Private t_main_loop_interval,t_refr_task_fromDtbase_intrv,t_refr_settings_intrv
+  Private t_main_loop_interval,t_refr_task_fromDtbase_intrv,t_refr_settings_intrv,t_del_hist_from_days
   'Database settings'
-  Private t_db_connection_String,t_db_fulpath,t_db_connection_crea_String,t_db_path_forLogs
+  Private t_db_connection_String,t_db_fulpath,t_db_connection_crea_String,t_db_path_forLogs,t_lan_logs
   public Property Get Db_connection_crea_String
       Db_connection_crea_String=t_db_connection_crea_String
     End Property
@@ -22,6 +22,13 @@ Class Settings
   Public Property Get Main_loop_interval
     Main_loop_interval = t_main_loop_interval
   End Property
+  Public Property get Lan_logs
+    if t_lan_logs<>"" Then
+      Lan_logs = t_lan_logs
+    else
+      Lan_logs =t_db_path_forLogs
+    end if
+  end Property
   Public Property Get Db_path_forLogs
     Db_path_forLogs = t_db_path_forLogs
   End Property
@@ -31,6 +38,9 @@ Class Settings
   Public Property Get Refr_settings_intrv
       Refr_settings_intrv = t_refr_settings_intrv
   End Property
+  public Property get Del_hist_from_days
+    Del_hist_from_days = t_del_hist_from_days
+  end Property
   'get dta from XML
   Private sub regenerate_calendars
     On Error resume Next
@@ -87,6 +97,8 @@ Class Settings
           t_main_loop_interval=settingsXML.selectSingleNode("scheduler/main_loop_interval").text
           t_db_path_forLogs=settingsXML.selectSingleNode("scheduler/db_path_forLogs").text
           t_db_fulpath=settingsXML.selectSingleNode("scheduler/db_fulpath").text
+          t_lan_logs=settingsXML.selectSingleNode("scheduler/db_lan_logs").text
+          t_del_hist_from_days=settingsXML.selectSingleNode("scheduler/del_hist_from_days").text
         End if
       WScript.Echo(now() & " Settings succesfuly loaded => " & scriptfullPath & "settings.xml")
       set settingsXML=nothing
@@ -142,6 +154,7 @@ Class Settings
           dim myErr: set myErr= schemaXML.parseError
           Wscript.Echo "You have error in XML => " & scriptfullPath & "schemaDB.xml => " + myErr.reason
           Call Err.Raise (vbObjectError + 10,"You have error in XML => " & scriptfullPath & "schemaDB.xml => " + myErr.reason)
+          set myErr=Nothing
         else
           dim i,j,k
           Dim objNodeList:Set objNodeList = schemaXML.SelectNodes("schema/table")
@@ -181,6 +194,7 @@ Class Settings
                   End with
                   If Not tmp Is Nothing Then  wscript.echo Now() & " " & tmp(k).text & " Execute result => " & True
                 next
+                set tmp=Nothing
                 set tmp= objNodeList(i).SelectNodes("insert")
                 for k=0 to tmp.length-1
                   with oDb1
@@ -191,7 +205,9 @@ Class Settings
                   End with
                   If Not tmp Is Nothing Then  wscript.echo Now() & " " & tmp(k).text & " Execute result => " & True
                 next
+                set tmp=Nothing
               end if
+              set Flds=Nothing
             Else
             WScript.Echo now () & " Checking '" & objNodeList(i).selectSingleNode("name").text + "' table exist in DB => " & not(ors.eof)
             end if
@@ -203,7 +219,7 @@ Class Settings
           Else
               WScript.Echo(now() & " Settings succesfuly loaded => " & scriptfullPath & "schemaDB.xml")
           End If
-
+          set objNodeList=Nothing
           oRs.filter=0
           oDb.close
           On Error Goto 0
@@ -251,7 +267,7 @@ End Class
 Class Calendar_Queue
     Private rs_type_queue
     Private rs_len,rs,first_day,last_day
-    Private objCon,cal_id
+    Private cal_id
     Public Sub Next_day
       if rs_len>1 then
         if rs_type_queue("period_pos")=rs_len Then
@@ -386,9 +402,9 @@ Class Calendar_Queue
 End Class
 Class Scheduler
   Private t_main_loop_interval,t_refr_task_fromDtbase_intrv,t_refr_settings_intrv
-  Private t_db_connection_String,t_db_path_forLogs,serv_control
+  Private t_db_connection_String,t_db_path_forLogs,serv_control,t_del_hist_from_days
   Private t_count_activeTask,t_enviroments,tmp_wmiRctset
-  Private t_work_to_do,t_old_work_to_do,t_db_fulpath
+  Private t_work_to_do,t_old_work_to_do,t_db_fulpath,t_lan_logs
   Private function Check_serv_maintainExist
     On Error resume Next
     Dim objWMIService ,colProcesses,objitem
@@ -434,7 +450,7 @@ Class Scheduler
     end if
   end sub
   Private sub Log_end_of_time_forTask
-    on error resume next
+   on error resume next
    dim chk:chk=False
    dim chk1 :chk1=False
    WScript.Echo(now() & " Sprawdzam przeterminowane zadania")
@@ -565,9 +581,9 @@ Class Scheduler
               end if
           End If
       Next
-      Set objFSO = Nothing
-      Set objFolder = Nothing
       Set colFiles = Nothing
+      Set objFolder = Nothing
+      Set objFSO = Nothing
       if chk then checkOLDER_reportedDB_not_existWMI
     end if
     If Err.Number <> 0 Then
@@ -600,12 +616,16 @@ Class Scheduler
         fso.CopyFile scriptfullPath & "TMP_task.vbs",scriptfullPath & "TaskID;" & TaskID & ".vbs", True
         Set fso=nothing
       end if
-      dim PID:PID=Launch_TASK(TaskID,TaskName)
-      Prepare_task_toRun=PID
+      dim PID
+      if Err.Number=0 Then
+        PID=Launch_TASK(TaskID,TaskName)
+      End if
       If Err.Number <> 0 Then
           WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
             & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+          PID=0
       end if
+      Prepare_task_toRun=PID
   end function
   Private Function Check_MainTASK_IsWork (TaskID)
     on error resume next
@@ -687,6 +707,7 @@ Class Scheduler
           get_enviroments="Access Driver not Installed"
       end if
     end if
+    set objRegistry=Nothing
     If Err.Number <> 0 Then
         WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
@@ -701,6 +722,8 @@ Class Scheduler
     Else
       Check_ver=64
     End if
+    set wshShell=Nothing
+    set fso=Nothing
     If Err.Number <> 0 Then
         WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
@@ -731,14 +754,21 @@ Class Scheduler
     objConfig.ShowWindow = HIDDEN_WINDOW
     'objConfig.CreateFlags=Create_New_Process_Group
     Set objProcess = objWMIService.Get("Win32_Process")
-    wscript.echo now() & " " & (t_enviroments & " //NoLogo " & scriptfullPath & "TaskID;" & TaskID & ".vbs >> "  & t_db_path_forLogs  & "\" & DTE_form(date()) & "TaskID;" & TaskID & ".log")
-    Dim intReturn:intReturn = objProcess.Create ("cmd.exe /c " & t_enviroments & " //U //NoLogo " & scriptfullPath & "TaskID;" & TaskID & ".vbs >> "  & t_db_path_forLogs & "\" & DTE_form(date()) & "TaskID" & TaskID & ".log", Null, objConfig, intProcessID)
-      wscript.echo Now() & " ProcessID started PID => " & intProcessID
-    Launch_TASK=intProcessID
+    wscript.echo now() & " " & (t_enviroments & " //NoLogo " & scriptfullPath & "TaskID;" & TaskID & ".vbs" & chr(34) & " >> " & chr(34)  & t_db_path_forLogs  & "\" & DTE_form(date()) & "TaskID;" & TaskID & ".log")
+    Dim intReturn:intReturn = objProcess.Create ("cmd.exe /C " & t_enviroments & " //NoLogo  " & scriptfullPath & "TaskID;" & TaskID & ".vbs 1>> " & t_db_path_forLogs & "\" & DTE_form(date()) & "TaskID" & TaskID & ".log 2>>&1",null, objConfig, intProcessID)
+      wscript.echo Now() & " ProcessID started PID => " & intProcessID & " Return_value:" & intReturn
     If Err.Number <> 0 Then
         WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+        Launch_TASK=0
     end if
+    if Err.Number=0 Then
+      Launch_TASK=intProcessID
+    end if
+    Set objProcess=Nothing
+    Set objConfig=Nothing
+    Set objStartup=Nothing
+    Set objWMIService=Nothing
   end Function
   Private Sub Get_settings
     On Error resume Next
@@ -750,6 +780,8 @@ Class Scheduler
         t_db_connection_String=XML_set.Db_connection
         t_db_path_forLogs=XML_set.Db_path_forLogs
         t_db_fulpath=XML_set.Db_fulpath
+        t_lan_logs=XML_set.Lan_logs
+        t_del_hist_from_days=XML_set.Del_hist_from_days
         set XML_set= Nothing
     If Err.Number <> 0 Then
         WScript.Echo now () & " Blad " & CStr(Err.Number) & " wygenerowany przez " _
@@ -762,7 +794,7 @@ Class Scheduler
   End sub
   Private Sub Check_Var_LogPath
     WScript.Echo(now() & " Sprawdzam ustawienia sciezki do logow")
-    call Add_var_envir("Log",t_db_path_forLogs)
+    call Add_var_envir("Log",t_lan_logs)
   end sub
   private sub settingdbxml
     WScript.Echo (now() & " Sygnal - pobrano ustawienia")
@@ -816,6 +848,7 @@ Class Scheduler
     Wscript.Echo now() & " Enviroments of main set to => " & t_enviroments
     if not FolderExists(t_db_path_forLogs) then Create_folder(t_db_path_forLogs)
     settingdbxml
+    Erase_24h_office
     Archive_logs(t_db_path_forLogs)
     Check_Var_LogPath
     Report_serv
@@ -854,6 +887,7 @@ Class Scheduler
       end if
       If set_cle>= t_refr_settings_intrv then
         Get_settings
+        Erase_24h_office
         settingdbxml
         Archive_logs(t_db_path_forLogs)
         set_cle=0
@@ -964,7 +998,6 @@ Class Scheduler
             if tmp_str<>"" then
               .fields("command")=objitem.CommandLine
             end if
-            if objitem.ProcessID=6372 then wscript.Echo ("Linia komend do " & objitem.CommandLine)
             .fields("PID")=objitem.ProcessID
             .fields("parentPID")=objitem.ParentProcessID
             .fields("Delete")="No"
@@ -1139,6 +1172,7 @@ Class Scheduler
         end if
         old_sweat.movenext
       loop
+
       for i=1 to cnt
         WScript.Echo Now() & " Element nr " & i & " => " & r_proc(i)
       next
@@ -1154,6 +1188,7 @@ Class Scheduler
           Set old_sweat.ActiveConnection = Nothing
         objCon.close
         end if
+        Set tmp_wmiRctset=Nothing
         Set old_sweat=Nothing
         Set objCon=Nothing
         If Err.Number <> 0 Then
@@ -1202,6 +1237,7 @@ Class Scheduler
   private Sub Archive_logs(fFolder)
     on error resume Next
     dim objFile
+    dim chk:chk=False
     dim objFSO :Set objFSO = CreateObject("Scripting.FileSystemObject")
     dim objFolder: Set objFolder = objFSO.GetFolder(fFolder)
     dim colFiles:Set colFiles = objFolder.Files
@@ -1212,16 +1248,27 @@ Class Scheduler
             if Left(objFile.Name,8)<>DTE_form(date()) and Left(objFile.Name,8)<>DTE_form(now()-(3/24)) then
               WScript.Echo (now () & " Przenosze stare logi : " & fFolder & "\" & objFile.name & " => " & fFolder & "\Old_logs.zip")
                call WindowsZip(fFolder & "\" & objFile.name ,fFolder & "\Old_logs.zip")
+               chk=True
               if Check_FileinZip_Exist(fFolder & "\" & objFile.name ,fFolder & "\Old_logs.zip") then objfile.Delete
             end if
         End If
     Next
-    Set objFSO = Nothing
-    Set objFolder = Nothing
     Set colFiles = Nothing
+    Set objFolder = Nothing
+    Set objFSO = Nothing
     If Err.Number <> 0 Then
         WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
+    end if
+    if chk=true Then
+      if hour(now()) =3 then
+        delete_old_task_hist
+        WScript.sleep (t_main_loop_interval*1000)
+        Compact
+        if Check_serv_maintainExist=true Then
+          WScript.Quit
+        end if
+      end if
     end if
   end Sub
   Private Function Check_FileinZip_Exist (sFile, sZipFile)
@@ -1242,8 +1289,9 @@ Class Scheduler
         WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
     end if
+    set oZipApp=Nothing
   End Function
-  Private Sub WindowsZip(sFile, sZipFile)
+  Private Function WindowsZip(sFile, sZipFile)
     on error resume Next
     'This script is provided under the Creative Commons license located
     'at http://creativecommons.org/licenses/by-nc/2.5/ . It may not
@@ -1285,7 +1333,7 @@ Class Scheduler
           WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
             & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
       end if
-  End Sub
+  End function
   Private Sub NewZip(sNewZip)
     on error resume next
     'This script is provided under the Creative Commons license located
@@ -1341,14 +1389,37 @@ Class Scheduler
       objCon.Execute("Delete from task_procc where task_pid=" & Pid_offtask)
       objCon.Close
       Wscript.Echo now() & " Instancja office zamknieta => " & rs_resp("curr_log")
-      Set objCon= Nothing
       set rs_resp = Nothing
+      Set objCon= Nothing
      End if
      If Err.Number <> 0 Then
          WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
            & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
      end if
   End Sub
+  Private sub Erase_24h_office
+    Dim objCon:Set objCon = CreateObject("ADODB.Connection")
+    objCon.Open ("Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" + scriptfullPath & "Log_Helper.mde")
+    dim rs_resp
+    Set rs_resp= CreateObject("ADODB.Recordset")
+    with rs_resp
+      .ActiveConnection = objCon
+      .CursorLocation = 3
+      .LockType=4
+      .open "Select * from task_procc where app_start<now()-1"
+    end with
+    Set rs_resp.ActiveConnection = Nothing
+    if not rs_resp.eof Then
+      objCon.Execute ("Delete from task_procc where app_start<now()-1")
+      do until rs_resp.EOF
+        Terminate_processes (rs_resp("pid"))
+        Terminate_processes (rs_resp("task_pid"))
+      loop
+    end if
+    objCon.Close
+    set rs_resp =Nothing
+    set objCon=Nothing
+  end sub
   Private sub Add_last_log(curr_log,Task_nam_ID)
 
   end sub
@@ -1367,11 +1438,36 @@ Class Scheduler
         Next
       end if
     check_is_closed=proccexist
+    Set colProcesses=Nothing
+    Set objWMIService=Nothing
     If Err.Number <> 0 Then
         WScript.Echo now() & " Blad " & Cstr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
     end if
   end function
+  Private sub Compact
+    Const CreateLog = True
+    dim objAccess: Set objAccess = CreateObject("Access.Application")
+    dim objFSO:Set objFSO = CreateObject("Scripting.FileSystemObject")
+    dim sPath:sPath = replace(replace(t_db_fulpath,Mid(t_db_fulpath, InStrRev(t_db_fulpath, "\") + 1) & "\",""),"\" & Mid(t_db_fulpath, InStrRev(t_db_fulpath, "\") + 1),"")
+    If objFSO.FileExists(sPath & "\" & DTE_form(date()) & "backup" & replace(t_db_fulpath,sPath & "\","")) Then
+        objFSO.DeleteFile(sPath & "\" & DTE_form(date()) & "backup" & replace(t_db_fulpath,sPath & "\",""))
+    End If
+    wscript.Echo sPath & "\" & DTE_form(date()) & "backup" & replace(t_db_fulpath,sPath & "\","")
+    dim errReturn:errReturn = objAccess.CompactRepair(t_db_fulpath, sPath & "\" & DTE_form(date()) & "backup" & replace(t_db_fulpath,sPath & "\",""), CreateLog)
+    Wscript.Echo Now() & " Compact/repair succeeded:" & errReturn
+    WScript.sleep(4*1000)
+    objFSO.CopyFile sPath & "\" & DTE_form(date()) & "backup" & replace(t_db_fulpath,sPath & "\",""),t_db_fulpath, True
+    Set objFSO = Nothing
+    Set objAccess = Nothing
+  end sub
+  Private sub delete_old_task_hist
+      Dim objCon:Set objCon = CreateObject("ADODB.Connection")
+      objCon.Open (t_db_connection_String)
+      objCon.Execute("Delete from schedule_history where start < now()-" & t_del_hist_from_days)
+      objCon.Close
+      set objCon=Nothing
+  end sub
 End Class
 Class Calendar
   private rs_exeptions,rs_type_day,rs_calendar_wrk
@@ -1443,6 +1539,7 @@ Class Calendar
         WScript.Echo now () & " Blad " & CStr(Err.Number) & " wygenerowany przez " _
           & Err.Source & Chr(13) & Err.Description  & Chr(13) & Err.Helpfile & chr(13) & Err.HelpContext
     End If
+    set que=Nothing
    if Isadd then
       for i=0 to R_FLDS-1
         rs_calendar_wrk.addnew

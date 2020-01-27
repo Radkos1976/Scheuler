@@ -5,6 +5,8 @@
 	<refr_settings_intrv>120</refr_settings_intrv>
 	<db_connection_String>Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=C:\Scheduler\Scheduler.accdb;UID=Admin;PWD= ;</db_connection_String>
 	<db_create_connection_String>Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\Scheduler\Scheduler.accdb;</db_create_connection_String>
-	<db_path_forLogs>C:\Scheduler_service\Logs</db_path_forLogs>
+	<db_path_forLogs>\\LAPTOP-MV29RI2R\Scheduler_service\Logs</db_path_forLogs>
 	<db_fulpath>C:\Scheduler\Scheduler.accdb</db_fulpath>
+	<db_lan_logs>\\LAPTOP-MV29RI2R\Scheduler_service\Logs</db_lan_logs>
+	<del_hist_from_days>35</del_hist_from_days>
 </scheduler>
