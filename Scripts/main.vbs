@@ -1412,8 +1412,11 @@ Class Scheduler
     if not rs_resp.eof Then
       objCon.Execute ("Delete from task_procc where app_start<now()-1")
       do until rs_resp.EOF
-        Terminate_processes (rs_resp("pid"))
-        Terminate_processes (rs_resp("task_pid"))
+        if Check_MainTASK_IsWork(rs_resp("task_id")) then
+            if rs_resp("task_pid")<>0 then Terminate_processes (rs_resp("task_pid"))
+        end if
+        If rs_resp("task_pid")<>0 then check_is_closed(rs_resp("task_pid"))
+        If rs_resp("pid")<>0 then check_is_closed(rs_resp("pid"))
       loop
     end if
     objCon.Close

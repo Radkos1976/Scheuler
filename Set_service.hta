@@ -12,7 +12,7 @@
 </head>
 <script language="VBScript">
 Dim objCurrDir,t_db_connection_String,t_db_connection_crea_String,t_refr_task_fromDtbase_intrv
-Dim t_refr_settings_intrv,t_main_loop_interval,t_db_path_forLogs,t_db_fulpath,serv_state
+Dim t_refr_settings_intrv,t_main_loop_interval,t_db_path_forLogs,t_db_fulpath,serv_state,t_lan_logs
 Sub Window_onLoad()
   SetCurrDir
   Get_settings
@@ -28,6 +28,10 @@ Sub refr_servic_btn
 end sub
 sub GEt_folder_nam
     document.getElementById("Nazwa_bazy").value=SelectFolder(document.getElementById("Nazwa_bazy").value) & "\Scheduler.accdb"
+    refr_servic_btn
+end sub
+sub GEt_log_lan_nam
+    document.getElementById("Log__lanpath").value=SelectFolder(document.getElementById("Log_path").value)
     refr_servic_btn
 end sub
 sub GEt_logfolder_nam
@@ -56,6 +60,7 @@ Sub Sav_settings
         settingsXML.selectSingleNode("scheduler/main_loop_interval").text=document.getElementById("Intervl").value
         settingsXML.selectSingleNode("scheduler/db_path_forLogs").text=document.getElementById("Log_path").value
         settingsXML.selectSingleNode("scheduler/db_fulpath").text=document.getElementById("Nazwa_bazy").value
+        settingsXML.selectSingleNode("scheduler/db_lan_logs").text=document.getElementById("Log__lanpath").value
       End if
       settingsXML.save objCurrDir & "\Scripts\" & "settings.xml"
       Set settingsXML=Nothing
@@ -69,6 +74,7 @@ Sub Get_settings
   document.getElementById("Intervl").value = t_main_loop_interval
   document.getElementById("DBIntervl").value = t_refr_task_fromDtbase_intrv
   document.getElementById("SRIntervl").value = t_refr_settings_intrv
+  document.getElementById("Log__lanpath").value =t_lan_logs
 end sub
 Sub SetCurrDir()
    Set objFSO = CreateObject("Scripting.FileSystemObject")
@@ -115,6 +121,7 @@ Public sub get_XML
         t_main_loop_interval=settingsXML.selectSingleNode("scheduler/main_loop_interval").text
         t_db_path_forLogs=settingsXML.selectSingleNode("scheduler/db_path_forLogs").text
         t_db_fulpath=settingsXML.selectSingleNode("scheduler/db_fulpath").text
+        t_lan_logs=settingsXML.selectSingleNode("scheduler/db_lan_logs").text
       End if
       Set settingsXML=Nothing
     end if
@@ -209,9 +216,14 @@ end Function
       <input type="button" value="..." name="run_button"  onClick="GEt_folder_nam">
     </div>
     <div>
-      <span> Ścieżka przechowywania logów z działania poszczególnych serwisów <br> </span>
+      <span> Ścieżka lokalna przechowywania logów z działania poszczególnych serwisów <br> </span>
       <input type="text" id="Log_path" Style="width:700px;" />
       <input type="button" value="..." name="run_button"  onClick="GEt_logfolder_nam">
+    </div>
+    <div>
+      <span> Ścieżka sieciowa przechowywania logów z działania poszczególnych serwisów <br> </span>
+      <input type="text" id="Log__lanpath" Style="width:700px;" />
+      <input type="button" value="..." name="run_button"  onClick="GEt_log_lan_nam">
     </div>
     <div>
       <span>Interwał odświeżania głównej pętli Serwisu [sek]<br> </span>
